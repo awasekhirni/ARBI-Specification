@@ -562,4 +562,19 @@ nodes=[None]*header.total_nodes
 
 3. Batch dictonary lookups with integer IDs 
 
-strings=dict(zip(ids,[dictionary[i] for i in ids]))
+strings = dict(zip(ids, [dictionary[i] for i in ids]))
+
+
+8. Security Considerations & Checks 
+
+It should provide strict security. Implementations Must validate:
+Implementations MUST validate:
+Field	Validation	Reject if
+Header magic	First 4 bytes	Not "ARBI"
+Version	2-byte integer	> 0x0001
+Offsets	Within file size	Outside bounds
+Dictionary IDs	< num_entries	Out of range
+Node counts	< header.total_nodes	Exceeds total
+String lengths	Match stored length	Mismatch
+CRC32	Whole file	Mismatch
+
