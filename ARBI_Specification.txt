@@ -637,3 +637,10 @@ Rust	arbi-rs	Safe, async support
 Go	arbi-go	Concurrency-focused
 JavaScript	arbi-js	WebAssembly build
 Zig    arbi-zig    
+
+
+9.4 Schema Registry 
+
+ARBI should use a decentralized schema registry. 
+Hub and Spoke Configuration with keys to sync 
+https://schemas.betaori.com/arbi-standards/v1/{namespace}/{schema_name}  
