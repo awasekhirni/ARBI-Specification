@@ -769,9 +769,22 @@ This section should focus on raster images/bitmaps retrieval and should provided
 13.4 Query Execution Flow
 
 14. Caching Strategies 
+In this section, we talk about varous caching strategies, architecture and their performance using ARBI format with RAG.
 
 14.1 Multi-Level Cache Architecture 
-
+-----------------------------------------------------------------------
+|             L1: Hot Cache                                           |
+|           (frequent queries, LRU, 100MB)                            |
+|            10ns access                                              |
+-----------------------------------------------------------------------
+|             L2: Warm Cache 
+|            (Pre-computed similarity scores, 1GB)
+|            100ns access
+_----------------------------------------------------------------------
+|             L3:ARBI file 
+|            (Memory-mapped, zero-copy)
+|            1micro second access (we need to prove this
+-----------------------------------------------------------------------
 
 14.2 Chunk-Aware Caching 
 
