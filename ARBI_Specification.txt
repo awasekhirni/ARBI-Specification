@@ -747,6 +747,11 @@ struct arbi_binary_vectors_t {
 11.3 Vector Search Performance Statistics 
 This section to present real-time statistics for various quantizations 
 (to be done for various datasets) 
+Quantization	Precision (Recall@10)	Size (768d)	Search Time (1M vectors)
+FP32	??%	 ??GB	?? ms
+FP16	??%	?? GB	?? ms
+INT8	??%	?? GB	?? ms
+Binary	??%	?? GB	?? ms
 
 13. Fast Retrieval Mechanisms 
 
