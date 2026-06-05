@@ -785,6 +785,16 @@ struct arbi_retrieval_pipeline_t {
 Often we have frequently accessed RAG queries, ARBI should support pre-computed similarity matrices. 
 A potential usecase for this is for retrieving static knowledge bases with repeated queries (e.g. HELP/FAQ systems, Legal Domain Knowledge (WestLaw/ LexisNexis), need to validate the performance how much it reduces the retrieval time by statistic and publish this as a white paper. Should talk to shahid, bits pilani to check if he can do some experiements https://www.linkedin.com/in/shaikshahid/
 
+struct arbi_similarity_cache_t {
+    uint32_t num_queries;            // Cached query patterns
+    uint32_t num_documents;          // Documents in cache
+    
+    // Compressed similarity matrix using 8-bit quantization
+    uint8_t similarity_scores[];     // [num_queries * num_documents] bytes
+};
+
+we need to do similar computation for 16bit, 32bit quantization
+
 13.3 Hybrid Retrieval with Bitmaps 
 
 This section should focus on raster images/bitmaps retrieval and should provided performance statistics. We need to look at a masters student who can do this as a dissertation. Need to reach out to KSA/IRAN/OMAN/ALGERIA/TUNISIA/EGYPT masters students to research on this 
