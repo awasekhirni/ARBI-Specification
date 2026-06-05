@@ -644,3 +644,101 @@ Zig    arbi-zig
 ARBI should use a decentralized schema registry. 
 Hub and Spoke Configuration with keys to sync 
 https://schemas.betaori.com/arbi-standards/v1/{namespace}/{schema_name}  
+
+
+10. RAG-Specific Optimizations 
+
+This section focuses on RAG specific enhancements and optimizations of ARBI format 
+
+10.1 Enhanced Header for RAG 
+struct arbi_rag_header_t {
+    // Base ARBI header (32 bytes)
+    uint8_t magic[4];          // "ARBI"
+    uint16_t version;          // 0x0002 (RAG-enabled version)
+    uint8_t flags;             // Extended flags (Table 1)
+    uint8_t compression;       // Compression codec
+    
+    // RAG-specific extensions (24 additional bytes)
+    uint32_t vector_index_offset;   // Offset to vector index
+    uint32_t chunk_index_offset;    // Offset to chunk index
+    uint32_t metadata_offset;       // Offset to RAG metadata
+    uint16_t chunk_size;            // Preferred chunk size (bytes)
+    uint8_t retrieval_strategy;     // 0=hybrid,1=dense,2=sparse
+    uint8_t reserved_rag[9];        // Reserved for future
+};
+
+
+Table 1: Extended RAG Flags
+Bit	Mask	Name	Description
+8	0x0100	HAS_VECTOR_INDEX	Pre-computed vector index present
+9	0x0200	HAS_CHUNK_INDEX	Document chunk boundaries indexed
+10	0x0400	HAS_HYBRID_SCORES	Pre-computed BM25 + dense scores
+11	0x0800	SUPPORTS_STREAMING_RAG	Chunk-level streaming support
+12-15	0xF000	RESERVED	-
+
+
+1.2 RAG-Optimized Node Structure
+
+struct arbi_rag_node_t {
+    // Base node (inherits from ARBINode)
+    arbi_node_header_t base;
+    
+    // RAG-specific enhancements (variable)
+    uint32_t chunk_id;              // Chunk identifier (for long documents)
+    uint32_t parent_id;             // Parent document ID
+    uint16_t start_offset;          // Start position in source
+    uint16_t end_offset;            // End position in source
+    float relevance_score;          // Pre-computed relevance (0-1)
+    uint8_t importance_level;       // 0-255 (content importance)
+    
+    // Re-ranking metadata
+    struct {
+        uint16_t num_rerank_features;
+        float features[];            // Custom reranking features
+    } rerank_data;
+};
+
+
+2. Vector Index Integration
+2.1 Compact Vector Index Format
+
+ARBI includes a hierarchical navigable small world (HNSW) index compressed for RAG workloads:
+
+struct arbi_vector_index_t {
+    uint32_t num_vectors;           // Number of vectors indexed
+    uint16_t vector_dimension;      // Dimensions (64-4096)
+    uint8_t index_type;             // 0=flat,1=IVF,2=HNSW,3=diskann
+    uint8_t quantization;           // 0=FP32,1=FP16,2=INT8,3=BINARY
+    
+    // Index parameters
+    union {
+        struct {  // IVF parameters
+            uint16_t num_clusters;
+            uint32_t cluster_centroids_offset;
+        } ivf;
+        struct {  // HNSW parameters
+            uint16_t M;              // Max connections per layer
+            uint16_t ef_construction;
+            uint8_t num_layers;
+        } hnsw;
+    } params;
+    
+    // Vector data section (byte-aligned)
+    uint32_t vector_data_offset;    // Offset to encoded vectors
+    uint32_t index_structure_offset; // Offset to graph/ID mapping
+};
+
+2.2 Quantized Vector Storage
+
+// INT8 quantized vectors (4x compression vs FP32)
+struct arbi_quantized_vectors_t {
+    float scale;                    // Scale factor for dequantization
+    float offset;                   // Offset for dequantization
+    int8_t vectors[];               // Quantized values (dimensions * num_vectors)
+};
+
+// Binary quantized vectors (32x compression for fast Hamming distance)
+struct arbi_binary_vectors_t {
+    uint64_t hash_functions[4];     // Projection hashes
+    uint64_t binary_vectors[];      // Packed bits (dimensions/64 * num_vectors)
+};
