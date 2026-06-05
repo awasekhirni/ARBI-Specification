@@ -537,3 +537,29 @@ Out-of-range dictionary ID	Validate < num_entries	Error, skip node
 Offset overflow	Check file bounds	Error, stop parsing
 3	GZIP	Gzip compression
 4-255	RESERVED	Future codecs
+
+
+7.3 Reference Implementation (Python, Go, Rust, Zig)
+
+To be done. Lets add this in Appendix A for complete implementation 
+
+7.4 Performance Optimization Tips 
+
+1. For Large files greater than 1 GB - We use memory mapping 
+
+Python code check:
+# pip3 install 
+import mmap
+with open('file.arbi', 'rb') as f:
+    with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+        decoder = ARBIDecoder(mm)
+
+2. Lets pre-allocate arrays when total_nodes known 
+
+Python code check:
+
+nodes=[None]*header.total_nodes 
+
+3. Batch dictonary lookups with integer IDs 
+
+strings=dict(zip(ids,[dictionary[i] for i in ids]))
