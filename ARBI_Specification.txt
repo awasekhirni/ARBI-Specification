@@ -1,0 +1,539 @@
+Acquired Resource Base Indicator Specification
+Author: Awase Khirni Syed Ph.D.
+Copyright 2025-26 Beta ORI Inc. Canada. All Rights Reserved.
+
+ARBI Specification Document. 
+
+Acquired Resource Base Indicator (ARBI) Format V1.0
+
+A High-Performance Binary Serialization Format for Knowledge Graphs. 
+
+Document Version: 1.0.0
+Status: Proposed Standard
+Date: 2025-06-01
+Category: Binary Serialization Format 
+Maintainer: Awase Khirni Syed 
+
+
+Table of Contents
+1. Introduction
+2. Design Goals & Requirements
+3. Format Overview 
+4. Detailed Specification 
+5. Data Types & Encoding 
+6. Schema Definition 
+7. Implementation Guidelines 
+8. Security Considerations 
+9. Interoperability 
+10. RAQ-Specific Optimizations 
+11. Vector Index Integration 
+12. Fast Retrieval Mechanisms
+13. Caching Strategies 
+14. Performance Benchmarks 
+15. Implementation Guide 
+16. Appendix
+
+1. Introduction 
+1.1. Purpose 
+
+The Acquired Resource Base Indictor (ARBI) format is a binary serialization specification designed for representing semantic knowledge graphs 
+extracted from web resources. It optimizes for 
+a. storage efficiency (70-85% smaller than JSON)
+b. Parsing speed (10-50x faster than JSON)
+c. Memory locality (cache-friendly layout)
+d. Streaming Support (process without full loading)
+
+1.2 Scope 
+
+This document specifies 
+ a. Binary Layout and Daa Structures 
+ b. Encoding and decoding algorithms 
+ c. Data type definitions 
+ d. Schema constraints 
+ e. Implementation requirements 
+
+
+1.3 Terminology 
+
+Term   Definition 
+Node    A knowledge entity (document, concept, relationship)
+ARBI Score  Composite metric indicating resource acquisiton value
+Dictionary  Interned string table for compression 
+Streaming   Processing data in chunks without full memory load 
+Zero-copy   Direct mmap access without deserialization 
+
+2. Design Goals & Requirements 
+2.1 Primary Goals 
+
+Goal      Target      Measurement 
+Size Efficiency    <=30% of JSON      Bytes per knowledge node 
+Parse Speed      >=10x JSON      Nodes per second 
+Memory Efficiency     <= 40% of JSON      RAM per node 
+Streaming support      fixed overhead      Chunk independence 
+
+2.2 Non-Goals 
+- Human readability (debugging tools provided separately)
+- self-describing schemas (schema registry assumed)
+- cross-platform floating point consistency (IEEE 754)
+
+2.3 Constraints 
+This section talks about constraints 
+- Maximum node size : 16 MB (enables 32-bit offsets)
+- Maximum dictionary entries : 4294967295( 2^32-1)
+- Maximum relationships per node: 65535
+- Maximum tags per node:255
+- Maximum attribute value size: 2^32-1 bytes 
+
+3. Format Overview 
+
+3.1 File Structure 
+
+The ARBI format comprises of 4 key sections 
+a. Heaber with 32 fixed bytes 
+b. Dictionary which comprises of string interning table of variable size 
+c. Node section which is of variable length and is sequential in nature 
+d. index section which provides random access lookup table of variable size 
+
+
+---------------------------------------
+|          HEADER                      |
+|       (32 bytes fixed)
+---------------------------------------
+---------------------------------------
+|          DICTIONARY                      |
+|       (String interning table)
+|        variable size
+---------------------------------------
+
+---------------------------------------
+|          NODE Section                      |
+|       (variable-length nodes)
+|        sequential
+---------------------------------------
+
+---------------------------------------
+|          INDEX SECTION                     |
+|       (Random access lookup table)
+|        variable size
+---------------------------------------
+
+3,2 Data Organization Principles 
+1. locality: related data stored contiguously 
+2. Alignment: 1-byte packaing (no padding except where noted)
+3. Endianness: little-endian (LE) througout 
+4. Variable Encoding: LEB128 for integers < 2^64
+
+
+3.3 Byte Order 
+All multi-byte integers are using little-endian byte order (ARM, x86_64, RISC-V). Applcations on big-endian systems (SPARC) must perform byte swapping during decoding phase.
+This might be overhead later on... need to research more
+
+4. Detailed Specification
+4.1 Header Structure 
+
+Size: 32 bytes fixed 
+
+Struct arbi_header_t{
+  uint8_t magic[4];          //0x41 0x52 0x42 0x49 ("ARBI")
+  uint16_t version;          //0x0001 for v1.0
+  uint8_t flags;             // Bitflags (Table1)
+  uint8_compression;         // Compression codec (Table2)
+  uint32_t dict_offset;      // Bye offset to dictionary section 
+  uint32_t nodes_offset;     //Byte offset to node section 
+  uint32_t index_offset;     //Byte offeset to index section 
+  uint32_t total_nodes;       //Total number of nodes 
+  uint64_t total_size;        //Total file size in bytes 
+  uint32_t checksum;          //crc32 of enteire file (excluding this field)
+  uint8_t reserved[3]         //zero-filled, reserved for future use 
+}
+
+
+Table 1: Header Flags
+Bit	Mask	Name	Description
+0	0x01	HAS_EMBEDDINGS	Embedding vectors present
+1	0x02	HAS_TIMESTAMPS	Temporal data present
+2	0x04	HAS_GEO	Geospatial data present
+3	0x08	HAS_ATTRIBUTES	Extended attributes present
+4	0x10	IS_STREAMING	Streaming format (chunked)
+5-7	0xE0	RESERVED	Must be zero
+
+
+Table 2: Compression Codes
+Value	Codec	Description
+0	NONE	No compression
+1	ZSTD	Zstandard compression
+2	LZ4	LZ4 compression
+
+
+4.2 Dictionary Section
+
+The dictionary stores unique strings and assigns them compact integer IDs (0 to N-1).
+
+struct arbi_dictionary_t {
+    uint32_t num_entries;      // Number of dictionary entries
+    // Followed by num_entries entries:
+    //   arbi_dict_entry_t entries[];
+};
+
+struct arbi_dict_entry_t {
+    uint32_t key_hash;         // MurmurHash3 (32-bit) of string
+    uint16_t key_length;       // Length in bytes (0-65535)
+    uint8_t key_data[];        // UTF-8 string (no null terminator)
+};
+
+
+Reserved Dictionary IDs (0-255):
+ID	String	ID	String
+0	(empty)	16	"type"
+1	"id"	17	"source"
+2	"name"	18	"url"
+3	"entity"	19	"timestamp"
+4	"predicate"	20	"arbi_score"
+5	"object"	21	"confidence"
+6	"weight"	22	"embedding"
+7	"attributes"	23	"evidence"
+8	"relationships"	24	"tag"
+9	"authority"	25	"freshness"
+10	"cross_ref"	26	"structure"
+11-15	RESERVED	27-255	RESERVED
+
+
+4.3 Node Section
+
+Each node is variable-length and may be preceded by alignment padding only in streaming mode.
+c
+
+struct arbi_node_header_t {
+    uint32_t id;               // Local node ID (0 to total_nodes-1)
+    uint8_t flags;             // Node flags (Table 3)
+    uint16_t name_dict_id;     // Dictionary ID for entity name (16-bit)
+    uint8_t num_tags;          // Number of tags (0-255)
+    // Followed by num_tags dictionary IDs (variable-length encoded)
+    // Followed by arbi_score (float32)
+    // Followed by relationship section (arbi_relationship_section_t)
+    // Followed by attribute section (arbi_attribute_section_t)
+    // Followed by optional embedding (arbi_embedding_t)
+};
+
+struct arbi_relationship_section_t {
+    uint16_t num_relationships;    // Number of relationships (0-65535)
+    uint32_t relationships_offset; // Offset to relationship array
+    // Relationships data at offset (variable length)
+};
+
+struct arbi_attribute_section_t {
+    uint16_t num_attributes;       // Number of attributes (0-65535)
+    uint32_t attributes_offset;    // Offset to attribute array
+    // Attributes data at offset (variable length)
+};
+
+Table 3: Node Flags
+Bit	Mask	Name	Description
+0	0x01	HAS_EMBEDDING	Node includes embedding vector
+1	0x02	HAS_EVIDENCE	Evidence text present
+2-7	0xFC	RESERVED	Must be zero
+4.4 Relationship Structure
+c
+
+struct arbi_relationship_t {
+    uint32_t target_node_id;       // Target node ID (0 to total_nodes-1)
+    uint16_t predicate_dict_id;    // Dictionary ID for relationship type
+    float weight;                  // Weight (0.0 to 1.0)
+    uint8_t flags;                 // Relationship flags (Table 4)
+    // Optional: if HAS_EVIDENCE flag:
+    uint32_t evidence_dict_id;     // Dictionary ID for evidence text
+};
+
+Table 4: Relationship Flags
+Bit	Mask	Name	Description
+0	0x01	IS_BIDIRECTIONAL	Relationship works both ways
+1	0x02	HAS_EVIDENCE	Evidence text attached
+2-3	0x0C	CONFIDENCE	0=low,1=medium,2=high,3=custom
+4-7	0xF0	RESERVED	Must be zero
+4.5 Attribute Structure
+
+Attributes use a tagged union format for type safety and compactness.
+c
+
+struct arbi_attribute_t {
+    uint16_t key_dict_id;          // Dictionary ID for attribute name
+    uint8_t value_type;            // Data type (Table 5)
+    // Value follows based on type (variable length)
+};
+
+Table 5: Attribute Value Types
+Value	Type Name	Size	Storage
+0x00	NULL	0	No data
+0x01	BOOL_TRUE	0	No data
+0x02	BOOL_FALSE	0	No data
+0x03	INT8	1	int8_t
+0x04	UINT8	1	uint8_t
+0x05	INT16	2	int16_t
+0x06	UINT16	2	uint16_t
+0x07	INT32	4	int32_t
+0x08	UINT32	4	uint32_t
+0x09	INT64	8	int64_t
+0x0A	UINT64	8	uint64_t
+0x0B	FLOAT32	4	float (IEEE 754)
+0x0C	FLOAT64	8	double (IEEE 754)
+0x0D	STRING_DICT	variable	uint32_t dict_id
+0x0E	STRING_INLINE	1-255	uint8_t len + UTF-8 data
+0x0F	BLOB	variable	uint32_t len + bytes
+0x10	TIMESTAMP	6	arbi_timestamp_t
+0x11	UUID	16	arbi_uuid_t
+0x12	URI	variable	uint32_t dict_id
+0x13	ARRAY_START	0	Start of array
+0x14	ARRAY_END	0	End of array
+0x15	OBJECT_START	0	Start of nested object
+0x16	OBJECT_END	0	End of nested object
+4.6 Embedding Structure
+c
+
+struct arbi_embedding_t {
+    uint16_t dimensions;           // Number of dimensions (1-65535)
+    uint8_t quantization_bits;     // 4 or 8 bits per dimension
+    uint8_t scale_factor;          // Scaling factor (stored as uint8)
+    // Followed by compressed embedding data:
+    // if quantization_bits == 8: dimensions * int8_t
+    // if quantization_bits == 4: (dimensions + 1) / 2 * uint8_t (packed)
+    // if quantization_bits == 0: dimensions * float32 (uncompressed)
+};
+
+4.7 Index Section
+
+Provides O(1) random access to nodes by ID.
+c
+
+struct arbi_index_t {
+    uint32_t num_entries;          // Must equal total_nodes from header
+    // Followed by num_entries index entries:
+    //   arbi_index_entry_t entries[];
+};
+
+struct arbi_index_entry_t {
+    uint32_t node_offset;          // Byte offset to node in file
+    uint32_t node_size;            // Size of node in bytes
+};
+
+5. Data Types & Encoding
+5.1 Variable-Length Integer (LEB128)
+
+ARBI uses LEB128 (Little Endian Base 128) for unsigned integers.
+
+Encoding Algorithm:
+python
+
+def encode_uleb128(value: int) -> bytes:
+    if value < 0:
+        raise ValueError("ULEB128 requires unsigned integer")
+    
+    result = []
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value == 0:
+            result.append(byte)
+            break
+        result.append(byte | 0x80)
+    return bytes(result)
+
+Decoding Algorithm:
+python
+
+def decode_uleb128(data: bytes, offset: int) -> tuple[int, int]:
+    value = 0
+    shift = 0
+    pos = offset
+    
+    while True:
+        if pos >= len(data):
+            raise ValueError("Incomplete ULEB128")
+        
+        byte = data[pos]
+        pos += 1
+        value |= (byte & 0x7F) << shift
+        
+        if (byte & 0x80) == 0:
+            break
+        
+        shift += 7
+        if shift > 63:
+            raise ValueError("ULEB128 exceeds 64 bits")
+    
+    return value, pos - offset
+
+5.2 Timestamp Format
+
+struct arbi_timestamp_t {
+    uint64_t seconds : 40;     // Unix timestamp (seconds)
+    uint32_t millis : 10;      // Milliseconds (0-999)
+    uint32_t reserved : 14;    // Must be zero
+};  // Total: 6 bytes
+
+Valid range: 1970-01-01 to 2255-06-25 (seconds since epoch)
+5.3 UUID Format
+c
+
+struct arbi_uuid_t {
+    uint64_t most_sig_bits;    // First 64 bits of UUID
+    uint64_t least_sig_bits;   // Last 64 bits of UUID
+};  // 16 bytes total
+
+5.4 String Encoding
+
+    All strings: UTF-8 encoded (no BOM)
+
+    No null terminators (length explicitly stored)
+
+    Dictionary IDs use variable-length encoding
+
+5.5 Floating Point
+
+    IEEE 754 binary32 for float32
+
+    IEEE 754 binary64 for float64
+
+    No special handling for NaN/Inf (allowed but discouraged)
+
+6. Schema Definition
+6.1 Core Schema (ARBI-Schema v1)
+yaml
+
+schema:
+  id: https://arbi-standard.org/schema/v1
+  version: 1.0.0
+  
+  types:
+    knowledge_node:
+      id: 0x01
+      fields:
+        - name: id
+          type: uint32
+          required: true
+        - name: node_type
+          type: enum
+          values: [entity, relationship, attribute_group]
+          required: true
+        - name: entity_name
+          type: string
+          max_length: 1024
+        - name: tags
+          type: array
+          items: string
+          max_items: 255
+        - name: arbi_score
+          type: float32
+          range: [0.0, 1.0]
+          default: 0.5
+        - name: relationships
+          type: array
+          items: relationship
+        - name: attributes
+          type: map
+          key_type: string
+          value_type: any
+        - name: embedding
+          type: array
+          items: float32
+          optional: true
+    
+    relationship:
+      id: 0x02
+      fields:
+        - name: predicate
+          type: string
+          required: true
+        - name: target_id
+          type: uint32
+          required: true
+        - name: weight
+          type: float32
+          range: [0.0, 1.0]
+          default: 1.0
+        - name: evidence
+          type: string
+          optional: true
+
+6.2 ARBI Score Calculation
+
+The ARBI score quantifies the acquisition value of a resource.
+python
+
+def calculate_arbi_score(resource: dict) -> float:
+    """
+    Calculate ARBI score from resource indicators.
+    
+    Formula: 
+        ARBI = 0.4*A + 0.3*F + 0.2*C + 0.1*S
+    
+    Where:
+        A = Authority (domain rank)
+        F = Freshness (content update frequency)
+        C = Cross-reference (backlink quality)
+        S = Structure (format richness)
+    """
+    
+    # Authority: logarithmic domain rank
+    domain_rank = resource.get('domain_rank', 10**6)
+    A = 1 - (min(domain_rank, 10**6) / 10**6)
+    
+    # Freshness: sigmoid of days since update
+    days_since_update = resource.get('days_since_update', 30)
+    F = 1 / (1 + math.exp(5 * (days_since_update/30 - 0.5)))
+    
+    # Cross-reference: normalized backlinks
+    backlinks = resource.get('backlink_count', 0)
+    C = min(backlinks / 1000, 1.0)
+    
+    # Structure: format richness (0-1)
+    has_schema = resource.get('has_schema_org', False)
+    has_opengraph = resource.get('has_opengraph', False)
+    has_jsonld = resource.get('has_json_ld', False)
+    S = (has_schema + has_opengraph + has_jsonld) / 3
+    
+    return 0.4*A + 0.3*F + 0.2*C + 0.1*S
+
+7. Implementation Guidelines
+7.1 Conformance Requirements
+
+MUST implement:
+
+    Header parsing and validation
+
+    Dictionary decoding
+
+    Node iteration (sequential)
+
+    LEB128 encoding/decoding
+
+    CRC32 checksum verification
+
+SHOULD implement:
+
+    Index section for random access
+
+    Compression support (ZSTD recommended)
+
+    Streaming mode
+
+    Attribute array/object nesting
+
+MAY implement:
+
+    Zero-copy mmap access
+
+    SIMD acceleration for parsing
+
+    Custom dictionary preloading
+
+7.2 Error Handling
+
+Implementations MUST handle:
+Error	Detection	Recovery
+Invalid magic bytes	Header validation	Reject file
+Checksum mismatch	CRC32 comparison	Reject file
+Incomplete LEB128	Bounds check	Error with position
+Out-of-range dictionary ID	Validate < num_entries	Error, skip node
+Offset overflow	Check file bounds	Error, stop parsing
+3	GZIP	Gzip compression
+4-255	RESERVED	Future codecs
