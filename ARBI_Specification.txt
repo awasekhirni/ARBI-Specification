@@ -758,6 +758,29 @@ Binary	??%	?? GB	?? ms
 13.1 Three-layer Retrieval Pipeline 
 To implement a cascade retrieval architecture that is optimized for RAG 
 
+struct arbi_retrieval_pipeline_t {
+    // Layer 1: Bi-encoder (fast, coarse)
+    struct {
+        uint32_t num_candidates;     // 100-1000 candidates
+        uint8_t similarity_metric;   // 0=dot,1=cosine,2=l2
+        uint32_t candidate_offset;   // Pre-computed candidate list
+    } coarse_retrieval;
+    
+    // Layer 2: Cross-encoder (slower, fine)
+    struct {
+        uint16_t num_reranked;       // 10-100 final candidates
+        uint32_t cross_encoder_offset; // Pre-computed scores
+    } fine_retrieval;
+    
+    // Layer 3: Context window assembly
+    struct {
+        uint16_t max_tokens;         // Context window limit
+        uint8_t assembly_strategy;   // 0=ordered,1=relevance,2=hybrid
+    } context_assembly;
+};
+
+
+
 13.2 Pre-computed Similarity Cache 
 Often we have frequently accessed RAG queries, ARBI should support pre-computed similarity matrices. 
 A potential usecase for this is for retrieving static knowledge bases with repeated queries (e.g. HELP/FAQ systems, Legal Domain Knowledge (WestLaw/ LexisNexis), need to validate the performance how much it reduces the retrieval time by statistic and publish this as a white paper. Should talk to shahid, bits pilani to check if he can do some experiements https://www.linkedin.com/in/shaikshahid/
