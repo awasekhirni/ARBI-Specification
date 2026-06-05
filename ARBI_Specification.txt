@@ -578,3 +578,62 @@ Node counts	< header.total_nodes	Exceeds total
 String lengths	Match stored length	Mismatch
 CRC32	Whole file	Mismatch
 
+(Note: Need to check with chandrashekhar bits pilani, https://www.linkedin.com/in/cyberchandu/, get his feedback)
+
+
+8.2 Resource Limits
+
+Implementations SHOULD impose limits:
+python
+
+MAX_NODE_SIZE = 16 * 1024 * 1024      # 16 MB
+MAX_DICT_ENTRIES = 4_000_000          # 4 million
+MAX_RELS_PER_NODE = 100_000           # 100k relationships
+MAX_ATTRIBUTES_PER_NODE = 10_000      # 10k attributes
+MAX_STRING_LENGTH = 2 * 1024 * 1024   # 2 MB
+
+8.3 Denial of Service Prevention
+
+    Bomb resistance: Limit nesting depth to 64 for arrays/objects
+
+    Allocation guard: Check total_size against available memory
+
+    Timeouts: Implement read timeouts for streaming
+
+8.4 Privacy Considerations
+
+ARBI files may contain sensitive data. Implementations SHOULD:
+
+    Provide encryption wrapper specification
+
+    Support secure memory wiping
+
+    Implement access controls via indices
+
+9. Interoperability
+9.1 MIME Types
+Format	MIME Type	File Extension
+Uncompressed	application/vnd.arbi	.arbi
+ZSTD compressed	application/vnd.arbi+zstd	.arbi.zst
+LZ4 compressed	application/vnd.arbi+lz4	.arbi.lz4
+GZIP compressed	application/vnd.arbi+gzip	.arbi.gz
+9.2 Conversion Tools
+bash
+
+# ARBI Toolkit commands
+arbi validate file.arbi                    # Validate format
+arbi info file.arbi                        # Show statistics
+arbi to-json file.arbi -o output.json      # Convert to JSON
+arbi from-json input.json -o output.arbi   # Convert from JSON
+arbi stream file.arbi --output-dir ./nodes # Extract streaming
+
+9.3 Language Bindings
+
+Official implementations  to be available for:
+Language	Repository	Features
+Python	arbi-python	Full spec, streaming
+C++	arbi-cpp	Zero-copy, SIMD
+Rust	arbi-rs	Safe, async support
+Go	arbi-go	Concurrency-focused
+JavaScript	arbi-js	WebAssembly build
+Zig    arbi-zig    
