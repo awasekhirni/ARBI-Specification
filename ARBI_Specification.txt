@@ -677,7 +677,7 @@ Bit	Mask	Name	Description
 12-15	0xF000	RESERVED	-
 
 
-1.2 RAG-Optimized Node Structure
+10.2 RAG-Optimized Node Structure
 
 struct arbi_rag_node_t {
     // Base node (inherits from ARBINode)
@@ -699,8 +699,8 @@ struct arbi_rag_node_t {
 };
 
 
-2. Vector Index Integration
-2.1 Compact Vector Index Format
+11. Vector Index Integration
+11.1 Compact Vector Index Format
 
 ARBI includes a hierarchical navigable small world (HNSW) index compressed for RAG workloads:
 
@@ -728,7 +728,7 @@ struct arbi_vector_index_t {
     uint32_t index_structure_offset; // Offset to graph/ID mapping
 };
 
-2.2 Quantized Vector Storage
+11.2 Quantized Vector Storage
 
 // INT8 quantized vectors (4x compression vs FP32)
 struct arbi_quantized_vectors_t {
@@ -742,3 +742,48 @@ struct arbi_binary_vectors_t {
     uint64_t hash_functions[4];     // Projection hashes
     uint64_t binary_vectors[];      // Packed bits (dimensions/64 * num_vectors)
 };
+
+
+11.3 Vector Search Performance Statistics 
+This section to present real-time statistics for various quantizations 
+(to be done for various datasets) 
+
+13. Fast Retrieval Mechanisms 
+
+13.1 Three-layer Retrieval Pipeline 
+To implement a cascade retrieval architecture that is optimized for RAG 
+
+13.2 Pre-computed Similarity Cache 
+Often we have frequently accessed RAG queries, ARBI should support pre-computed similarity matrices. 
+A potential usecase for this is for retrieving static knowledge bases with repeated queries (e.g. HELP/FAQ systems, Legal Domain Knowledge (WestLaw/ LexisNexis), need to validate the performance how much it reduces the retrieval time by statistic and publish this as a white paper. Should talk to shahid, bits pilani to check if he can do some experiements https://www.linkedin.com/in/shaikshahid/
+
+13.3 Hybrid Retrieval with Bitmaps 
+
+This section should focus on raster images/bitmaps retrieval and should provided performance statistics. We need to look at a masters student who can do this as a dissertation. Need to reach out to KSA/IRAN/OMAN/ALGERIA/TUNISIA/EGYPT masters students to research on this 
+
+13.4 Query Execution Flow
+
+14. Caching Strategies 
+
+14.1 Multi-Level Cache Architecture 
+
+
+14.2 Chunk-Aware Caching 
+
+14.3 Query Result Caching 
+This section focuses on Semantic Caching for RAG Queries 
+
+
+14.4 Cache Performance 
+
+15. Performance Benchmarks 
+
+15.1 RAG Pipeline Comparison 
+
+15.2 End-to-End RAG Application 
+
+
+15.3 Streaming RAG Performance 
+This section evaluates the performance for real-time applications such as chatbots, voice assistants 
+
+16. Implementation Guide 
